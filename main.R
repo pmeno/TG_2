@@ -20,13 +20,13 @@ setDT(tickersBolsa)
 
 empresasBolsa <- empresasBolsa[, .(CD_CVM, DENOM_SOCIAL, DENOM_COMERC, SETOR_ATIV, CNPJ, DT_REG, DT_CANCEL, MOTIVO_CANCEL, SIT_REG, CATEG_REG, SIT_EMISSOR, TP_MERC)]
 
-#Formatando datas
+#Formatando colunas para as classes necessarias
+
 empresasBolsa[, DT_REG := as.Date(DT_REG, '%d/%m/%Y')]
 empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
+tickersBolsa <- tickersBolsa[, lapply(.SD, as.character)]
 
-#Filtrando apenas empresas negociadas em bolsa
+# Filtrando apenas empresas que queremos calcular os parâmetros.
 
 empresasBolsa <- empresasBolsa[is.na(DT_CANCEL) & CATEG_REG == 'Categoria A']
-
-tickersBolsa <- tickersBolsa[, lapply(.SD, as.character), by = CNPJ]
 
