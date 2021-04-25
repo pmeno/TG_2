@@ -28,8 +28,5 @@ empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
 
 empresasBolsa <- empresasBolsa[is.na(DT_CANCEL) & CATEG_REG == 'Categoria A']
 
-
-
-
-
+tickersBolsa <- tickersBolsa[, lapply(.SD, as.character), by = CNPJ]
 
