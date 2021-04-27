@@ -4,19 +4,24 @@ require(data.table)
 require(BatchGetSymbols)
 require(GetDFPData2)
 require(GetFREData)
+require(lubridate)
 
 ### CAMINHOS NECESSÁRIOS #####
 
 caminhoPrincipal <- "C:/Users/pedro/Desktop/TCC/PARTE_2/codes/TG_2/"
-caminhoTickers   <- paste0(caminhoPrincipal, "tickersListadas.csv")
+caminhoBases     <- "C:/Users/pedro/Desktop/TCC/PARTE_2/codes/TG_2/bases/"
+caminhoTickers   <- paste0(caminhoBases, "tickersListadas.csv")
+caminhoQtdAcoes  <- paste0(caminhoBases, "baseQtdAcoes.csv")
 
 ### CARREGAR TODAS AS EMPRESAS DA BOLSA DE 2010 ATÉ HOJE ########
 
 empresasBolsa <- get_info_companies()
-tickersBolsa  <- read.csv(caminhoTickers, sep = ';', encoding = 'UTF-8', header = T, na.strings = "")
+tickersBolsa  <- read.csv(caminhoTickers, sep = ';', encoding = 'UTF-8', header = T, na.strings = "", stringsAsFactors = FALSE)
+acoesQtdBolsa <- read.csv(caminhoQtdAcoes, sep = ';', encoding = 'UTF-8', header = T, na.strings = "NA", stringsAsFactors = FALSE)
 
 setDT(empresasBolsa)
 setDT(tickersBolsa)
+setDT(acoesQtdBolsa)
 
 empresasBolsa <- empresasBolsa[, .(CD_CVM, DENOM_SOCIAL, DENOM_COMERC, SETOR_ATIV, CNPJ, DT_REG, DT_CANCEL, MOTIVO_CANCEL, SIT_REG, CATEG_REG, SIT_EMISSOR, TP_MERC)]
 
@@ -24,9 +29,17 @@ empresasBolsa <- empresasBolsa[, .(CD_CVM, DENOM_SOCIAL, DENOM_COMERC, SETOR_ATI
 
 empresasBolsa[, DT_REG := as.Date(DT_REG, '%d/%m/%Y')]
 empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
-tickersBolsa <- tickersBolsa[, lapply(.SD, as.character)]
+
+acoesQtdBolsa[, 'DT_REFER'] <- acoesQtdBolsa[, as.Date(DT_REFER, origin = "1899-12-30")]
 
 # Filtrando apenas empresas que queremos calcular os parâmetros.
 
-empresasBolsa <- empresasBolsa[is.na(DT_CANCEL) & CATEG_REG == 'Categoria A']
+empresasBolsa <- empresasBolsa[is.na(DT_CANCEL) & (SIT_REG == 'ATIVO') & (CATEG_REG == 'Categoria A') & (is.na(TP_MERC) | TP_MERC != 'BALCÃO NÃO ORGANIZADO')]
+empresasBolsa <- empresasBolsa[SIT_EMISSOR %chin% c("FASE OPERACIONAL", "FASE PRÉ-OPERACIONAL")]
+empresasBolsa <- merge(empresasBolsa, tickersBolsa, by = c('CNPJ', 'DENOM_SOCIAL'), all.x = TRUE)
+
+
+valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DT_REFER + CD_CVM ~ stock.type, value.var = 'qtd.issued', fun.aggregate = sum)
+valorMercado[, 'NA' := NULL]
+
 
