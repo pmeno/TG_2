@@ -4,19 +4,24 @@ require(data.table)
 require(BatchGetSymbols)
 require(GetDFPData2)
 require(GetFREData)
-require(lubridate)
+require(bizdays)
 
 ### CAMINHOS NECESSÁRIOS #####
 
 caminhoPrincipal <- "C:/Users/pedro/Desktop/TCC/PARTE_2/codes/TG_2/"
 caminhoBases     <- "C:/Users/pedro/Desktop/TCC/PARTE_2/codes/TG_2/bases/"
-caminhoTickers   <- paste0(caminhoBases, "tickersListadas.csv")
+caminhoTickers   <- paste0(caminhoBases, "tickerBolsa.csv")
 caminhoQtdAcoes  <- paste0(caminhoBases, "baseQtdAcoes.csv")
+
+### Sources #####
+
+source(paste0(caminhoPrincipal, 'ChecarPrecoAcao.R'))
+
 
 ### CARREGAR TODAS AS EMPRESAS DA BOLSA DE 2010 ATÉ HOJE ########
 
 empresasBolsa <- get_info_companies()
-tickersBolsa  <- read.csv(caminhoTickers, sep = ';', encoding = 'UTF-8', header = T, na.strings = "", stringsAsFactors = FALSE)
+tickersBolsa  <- read.csv(caminhoTickers, sep = ';', encoding = 'UTF-8', header = T, na.strings = "", stringsAsFactors = FALSE, colClasses = c('character','character','character','character','character'))
 acoesQtdBolsa <- read.csv(caminhoQtdAcoes, sep = ';', encoding = 'UTF-8', header = T, na.strings = "NA", stringsAsFactors = FALSE)
 
 setDT(empresasBolsa)
@@ -42,4 +47,13 @@ empresasBolsa <- merge(empresasBolsa, tickersBolsa, by = c('CNPJ', 'DENOM_SOCIAL
 valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DT_REFER + CD_CVM ~ stock.type, value.var = 'qtd.issued', fun.aggregate = sum)
 valorMercado[, 'NA' := NULL]
 
+valorMercado <- merge(valorMercado, empresasBolsa[, .(DENOM_SOCIAL, CD_CVM, DT_REG, Ticker_ON, Ticker_PN, Ticker_UN)], by = 'CD_CVM', all.y = T)
 
+priceFinal <- data.table()
+
+for(i in 1:length(b[, dataRef])){
+  
+  price <- ChecarPrecoAcao(b[, Ticker_ON_YAHOO][i], b[, dataRef][i])
+  priceFinal <- rbind(priceFinal, price)
+  
+}
