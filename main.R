@@ -18,6 +18,11 @@ caminhoQtdAcoes  <- paste0(caminhoBases, "baseQtdAcoes.csv")
 source(paste0(caminhoPrincipal, 'ChecarPrecoAcao.R'))
 
 
+### Declaracoes de variaveis ####
+
+precosFinal_ON <- data.table()
+precosFinal_PN <- data.table()
+
 ### CARREGAR TODAS AS EMPRESAS DA BOLSA DE 2010 ATÉ HOJE ########
 
 empresasBolsa <- get_info_companies()
@@ -49,11 +54,34 @@ valorMercado[, 'NA' := NULL]
 
 valorMercado <- merge(valorMercado, empresasBolsa[, .(DENOM_SOCIAL, CD_CVM, DT_REG, Ticker_ON, Ticker_PN, Ticker_UN)], by = 'CD_CVM', all.y = T)
 
-priceFinal <- data.table()
+# Não queremos empresas registradas em 2020 para frente, data de referencia de dados de ON e PN maior que 2020 e zerados
+valorMercado <- valorMercado[DT_REG < '2020-01-01']
+valorMercado <- valorMercado[DT_REFER <= '2019-01-01']
+valorMercado <- valorMercado[(ON != 0) && (PN != 0)]
 
-for(i in 1:length(b[, dataRef])){
-  
-  price <- ChecarPrecoAcao(b[, Ticker_ON_YAHOO][i], b[, dataRef][i])
-  priceFinal <- rbind(priceFinal, price)
+#Criando data que os preços serão procurados e string de tickers
+valorMercado[, dataPreco := offset(as.Date(paste0(year(DT_REFER),'-01-01')), 120, 'Brazil/ANBIMA')]
+valorMercado[, Ticker_ON_YAHOO := paste0(Ticker_ON, '.SA')]
+valorMercado[, Ticker_PN_YAHOO := paste0(Ticker_PN, '.SA')]
+dataPrecos <- valorMercado[, unique(dataPreco)]
+
+for(data in dataPrecos)
+{
+  data <- as.Date(data)
+  precoInicial   <- data.table()
+  precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'ON') 
+  precosFinal_ON <- rbind(precosFinal_ON, precoInicial)
   
 }
+
+for(data in dataPrecos)
+{
+  data <- as.Date(data)
+  precoInicial   <- data.table()
+  precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'PN') 
+  precosFinal_PN <- rbind(precosFinal_PN, precoInicial)
+  
+}
+
+valorMercado <- merge(valorMercado, precosFinal_ON, by = c('dataPreco', 'Ticker_ON_YAHOO'), all.x = T)
+valorMercado <- merge(valorMercado, precosFinal_PN, by = c('dataPreco', 'Ticker_PN_YAHOO'), all.x = T)
