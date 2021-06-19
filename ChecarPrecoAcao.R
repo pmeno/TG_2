@@ -9,7 +9,7 @@ ChecarPrecoAcao <- function(dados = data.table(), dataMercado = "2010-01-01", ti
   
   #precos[, .N, by = data.ref][order(N)]
   
-  precos <- precos[, .(price.adjusted, ref.date, ticker)]
+  precos <- precos[ref.date == dataMercado, .(price.adjusted, ref.date, ticker)]
   setnames(precos, colnames(precos), c('preco', 'dataPreco', paste0('Ticker_', tipoAcao, '_YAHOO')))
   precos
   

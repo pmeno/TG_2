@@ -42,7 +42,7 @@ empresasBolsa <- empresasBolsa[, .(CD_CVM, DENOM_SOCIAL, DENOM_COMERC, SETOR_ATI
 empresasBolsa[, DT_REG := as.Date(DT_REG, '%d/%m/%Y')]
 empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
 
-acoesQtdBolsa[, 'DT_REFER'] <- acoesQtdBolsa[, as.Date(DT_REFER, origin = "1899-12-30")]
+acoesQtdBolsa[, DT_REFER := as.Date(DT_REFER, format = '%Y-%m-%d')]
 acoesQtdBolsa <- DefineQtdAcoes(acoesQtdBolsa)
 
 # Filtrando apenas empresas que queremos calcular os parâmetros.
@@ -52,7 +52,7 @@ empresasBolsa <- empresasBolsa[SIT_EMISSOR %chin% c("FASE OPERACIONAL", "FASE PR
 empresasBolsa <- merge(empresasBolsa, tickersBolsa, by = c('CNPJ', 'DENOM_SOCIAL'), all.x = TRUE)
 
 
-valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DENOM_CIA + CD_CVM ~ stock.type, value.var = 'qtd.issued')
+valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DENOM_CIA + CD_CVM ~ stock.type, value.var = 'qtd.issued', fun.aggregate = sum)
 valorMercado[, 'NA' := NULL]
 
 valorMercado <- merge(valorMercado, empresasBolsa[, .(DENOM_SOCIAL, CD_CVM, DT_REG, Ticker_ON, Ticker_PN, Ticker_UN)], by = 'CD_CVM', all.y = T)
@@ -75,23 +75,15 @@ precosON <- lapply(datasPreco, function(dataON)
       result
   })
 
-#for(data in dataPrecos)
-#{
-  #data <- as.Date(data)
-  #precoInicial   <- data.table()
-  #precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'ON') 
-  #precosFinal_ON <- rbind(precosFinal_ON, precoInicial)
-  
-#}
+precosON <- rbindlist(precosON)
 
-for(data in dataPrecos)
+precosPN <- lapply(datasPreco, function(dataPN)
 {
-  data <- as.Date(data)
-  precoInicial   <- data.table()
-  precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'PN') 
-  precosFinal_PN <- rbind(precosFinal_PN, precoInicial)
-  
-}
+  result <- ChecarPrecoAcao(valorMercado, dataPN, 'PN')
+  result
+})
+
+precosPN <- rbindlist(precosPN)
 
 valorMercado <- merge(valorMercado, precosFinal_ON, by = c('dataPreco', 'Ticker_ON_YAHOO'), all.x = T)
 valorMercado <- merge(valorMercado, precosFinal_PN, by = c('dataPreco', 'Ticker_PN_YAHOO'), all.x = T)
