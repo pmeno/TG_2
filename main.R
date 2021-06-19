@@ -16,6 +16,8 @@ caminhoQtdAcoes  <- paste0(caminhoBases, "baseQtdAcoes.csv")
 ### Sources #####
 
 source(paste0(caminhoPrincipal, 'ChecarPrecoAcao.R'))
+source(paste0(caminhoPrincipal, 'DefineQtdAcoes.R'))
+source(paste0(caminhoPrincipal, 'DiasUteisPreco.R'))
 
 
 ### Declaracoes de variaveis ####
@@ -41,6 +43,7 @@ empresasBolsa[, DT_REG := as.Date(DT_REG, '%d/%m/%Y')]
 empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
 
 acoesQtdBolsa[, 'DT_REFER'] <- acoesQtdBolsa[, as.Date(DT_REFER, origin = "1899-12-30")]
+acoesQtdBolsa <- DefineQtdAcoes(acoesQtdBolsa)
 
 # Filtrando apenas empresas que queremos calcular os parâmetros.
 
@@ -49,30 +52,37 @@ empresasBolsa <- empresasBolsa[SIT_EMISSOR %chin% c("FASE OPERACIONAL", "FASE PR
 empresasBolsa <- merge(empresasBolsa, tickersBolsa, by = c('CNPJ', 'DENOM_SOCIAL'), all.x = TRUE)
 
 
-valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DT_REFER + CD_CVM ~ stock.type, value.var = 'qtd.issued', fun.aggregate = sum)
+valorMercado <- dcast(acoesQtdBolsa, CNPJ_CIA + DENOM_CIA + CD_CVM ~ stock.type, value.var = 'qtd.issued')
 valorMercado[, 'NA' := NULL]
 
 valorMercado <- merge(valorMercado, empresasBolsa[, .(DENOM_SOCIAL, CD_CVM, DT_REG, Ticker_ON, Ticker_PN, Ticker_UN)], by = 'CD_CVM', all.y = T)
 
 # Não queremos empresas registradas em 2020 para frente, data de referencia de dados de ON e PN maior que 2020 e zerados
 valorMercado <- valorMercado[DT_REG < '2020-01-01']
-valorMercado <- valorMercado[DT_REFER <= '2019-01-01']
 valorMercado <- valorMercado[(ON != 0) && (PN != 0)]
 
 #Criando data que os preços serão procurados e string de tickers
-valorMercado[, dataPreco := offset(as.Date(paste0(year(DT_REFER),'-01-01')), 120, 'Brazil/ANBIMA')]
+
+datasPreco <- DiasUteisPreco(2010:2019)
+
+# Formatando tickers no formato necessário
 valorMercado[, Ticker_ON_YAHOO := paste0(Ticker_ON, '.SA')]
 valorMercado[, Ticker_PN_YAHOO := paste0(Ticker_PN, '.SA')]
-dataPrecos <- valorMercado[, unique(dataPreco)]
 
-for(data in dataPrecos)
-{
-  data <- as.Date(data)
-  precoInicial   <- data.table()
-  precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'ON') 
-  precosFinal_ON <- rbind(precosFinal_ON, precoInicial)
+precosON <- lapply(datasPreco, function(dataON)
+  {
+      result <- ChecarPrecoAcao(valorMercado, dataON, 'ON')
+      result
+  })
+
+#for(data in dataPrecos)
+#{
+  #data <- as.Date(data)
+  #precoInicial   <- data.table()
+  #precoInicial   <- ChecarPrecoAcao(valorMercado, data, 'ON') 
+  #precosFinal_ON <- rbind(precosFinal_ON, precoInicial)
   
-}
+#}
 
 for(data in dataPrecos)
 {
