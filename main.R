@@ -5,6 +5,7 @@ require(BatchGetSymbols)
 require(GetDFPData2)
 require(GetFREData)
 require(bizdays)
+require(stringr)
 
 ### CAMINHOS NECESSÁRIOS #####
 
@@ -18,6 +19,7 @@ caminhoQtdAcoes  <- paste0(caminhoBases, "baseQtdAcoes.csv")
 source(paste0(caminhoPrincipal, 'ChecarPrecoAcao.R'))
 source(paste0(caminhoPrincipal, 'DefineQtdAcoes.R'))
 source(paste0(caminhoPrincipal, 'DiasUteisPreco.R'))
+source(paste0(caminhoPrincipal, 'CalcularValorMercado.R'))
 
 
 ### Declaracoes de variaveis ####
@@ -44,6 +46,7 @@ empresasBolsa[, DT_CANCEL := as.Date(DT_CANCEL, '%d/%m/%Y')]
 
 acoesQtdBolsa[, DT_REFER := as.Date(DT_REFER, format = '%Y-%m-%d')]
 acoesQtdBolsa <- DefineQtdAcoes(acoesQtdBolsa)
+acoesQtdBolsa[, CNPJ := as.character(as.numeric(str_remove_all(acoesQtdBolsa$CNPJ_CIA, pattern = '[./-]')))]
 
 # Filtrando apenas empresas que queremos calcular os parâmetros.
 
@@ -69,8 +72,12 @@ datasPreco <- DiasUteisPreco(2010:2019)
 valorMercado[, Ticker_ON_YAHOO := paste0(Ticker_ON, '.SA')]
 valorMercado[, Ticker_PN_YAHOO := paste0(Ticker_PN, '.SA')]
 
+#debug
+#valorMercado <- valorMercado[CD_CVM %in% c(19348,9512,5410,22470,23264)]
+
 precosON <- lapply(datasPreco, function(dataON)
   {
+      print(sprintf("Baixando precos para as ações ON desde:%s", dataON))
       result <- ChecarPrecoAcao(valorMercado, dataON, 'ON')
       result
   })
@@ -79,11 +86,18 @@ precosON <- rbindlist(precosON)
 
 precosPN <- lapply(datasPreco, function(dataPN)
 {
+  print(sprintf("Baixando precos para as ações ON desde:%s", dataON))
   result <- ChecarPrecoAcao(valorMercado, dataPN, 'PN')
   result
 })
 
 precosPN <- rbindlist(precosPN)
 
-valorMercado <- merge(valorMercado, precosFinal_ON, by = c('dataPreco', 'Ticker_ON_YAHOO'), all.x = T)
-valorMercado <- merge(valorMercado, precosFinal_PN, by = c('dataPreco', 'Ticker_PN_YAHOO'), all.x = T)
+precosFinal <- rbind(precosON, precosPN)
+
+setkey(precosFinal, 'ticker', 'dataPreco')
+precosFinal <-unique(precosFinal)
+
+a <- CalcularValorMercado(precosFinal, acoesQtdBolsa)
+
+b <- merge(a, valorMercado[, .(CD_CVM, Ticker_ON, Ticker_PN)], by = 'CD_CVM')
