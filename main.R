@@ -86,7 +86,7 @@ precosON <- rbindlist(precosON)
 
 precosPN <- lapply(datasPreco, function(dataPN)
 {
-  print(sprintf("Baixando precos para as ações ON desde:%s", dataON))
+  print(sprintf("Baixando precos para as ações ON desde:%s", dataPN))
   result <- ChecarPrecoAcao(valorMercado, dataPN, 'PN')
   result
 })
@@ -98,6 +98,16 @@ precosFinal <- rbind(precosON, precosPN)
 setkey(precosFinal, 'ticker', 'dataPreco')
 precosFinal <-unique(precosFinal)
 
-a <- CalcularValorMercado(precosFinal, acoesQtdBolsa)
+valorMercadoCalculado <- CalcularValorMercado(precosFinal, acoesQtdBolsa)
 
-b <- merge(a, valorMercado[, .(CD_CVM, Ticker_ON, Ticker_PN)], by = 'CD_CVM')
+#Remover anomalias
+valorMercadoCalculado <- valorMercadoCalculado[!(preco_ON < 0 | preco_PN < 0)]
+valorMercadoCalculado <- valorMercadoCalculado[!(preco_ON >= 500 | preco_PN >= 500)]
+valorMercadoCalculado <- valorMercadoCalculado[valorDeMercado != 0]
+valorMercadoCalculado <- valorMercadoCalculado[, .SD[1], by = .(year(dataPreco), CD_CVM)]
+
+#Adicionar tickers ON e PN
+ValorMercadoFinal <- merge(valorMercadoCalculado, valorMercado[, .(CD_CVM, Ticker_ON, Ticker_PN)], by = 'CD_CVM', all.x = TRUE, allow.cartesian = TRUE)
+ValorMercadoFinal <- ValorMercadoFinal[, .SD[1], by = .(CD_CVM, year)]
+
+
