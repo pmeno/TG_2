@@ -20,6 +20,7 @@ source(paste0(caminhoPrincipal, 'ChecarPrecoAcao.R'))
 source(paste0(caminhoPrincipal, 'DefineQtdAcoes.R'))
 source(paste0(caminhoPrincipal, 'DiasUteisPreco.R'))
 source(paste0(caminhoPrincipal, 'CalcularValorMercado.R'))
+source(paste0(caminhoPrincipal, 'RetornaValorContabil.R'))
 
 
 ### Declaracoes de variaveis ####
@@ -109,5 +110,45 @@ valorMercadoCalculado <- valorMercadoCalculado[, .SD[1], by = .(year(dataPreco),
 #Adicionar tickers ON e PN
 ValorMercadoFinal <- merge(valorMercadoCalculado, valorMercado[, .(CD_CVM, Ticker_ON, Ticker_PN)], by = 'CD_CVM', all.x = TRUE, allow.cartesian = TRUE)
 ValorMercadoFinal <- ValorMercadoFinal[, .SD[1], by = .(CD_CVM, year)]
+
+patrimonioLiquido <- lapply(datasPreco, function(ano)
+{
+  print(sprintf("Baixando balanço patrimonial para as ações no ano de: %s", year(ano)))
+  result <- RetornaValorContabil(ValorMercadoFinal[, unique(CD_CVM)], ano, 'con')
+  result
+})
+
+patrimonioFinal <- rbindlist(patrimonioLiquido)
+patrimonioFinal[, year := year(DT_REFER)]
+
+patrimonioFinal <- merge(ValorMercadoFinal, patrimonioFinal, by = c('CD_CVM', 'year'), all.x = T, allow.cartesian = T)
+
+acoesFaltantes <- patrimonioFinal[is.na(VL_CONTA)]
+acoesFaltantes[, DT_REFER := NULL]
+acoesFaltantes[, ESCALA_MOEDA := NULL]
+acoesFaltantes[, DS_CONTA := NULL]
+acoesFaltantes[, VL_CONTA := NULL]
+
+patrimonioLiquidoInd <- lapply(datasPreco, function(ano)
+{
+  codigoCVM <- acoesFaltantes[year == year(ano), unique(CD_CVM)]
+  print(sprintf("Baixando balanço patrimonial invidual para as ações no ano de: %s", year(ano)))
+  result <- RetornaValorContabil(codigoCVM, ano, 'ind')
+  result[, year := year(DT_REFER)]
+  result
+})
+
+patrimonioFinalFaltantes <- rbindlist(patrimonioLiquidoInd)
+patrimonioFinalFaltantes <- merge(acoesFaltantes, patrimonioFinalFaltantes, by = c('CD_CVM', 'year'), all.x = TRUE)
+
+insumos3Fatores <- rbind(patrimonioFinal, patrimonioFinalFaltantes)
+insumos3Fatores <- insumos3Fatores[!is.na(VL_CONTA)]
+insumos3Fatores <- insumos3Fatores[, valorPatrimonio := ifelse(ESCALA_MOEDA == 'MIL', VL_CONTA*1000, VL_CONTA)]
+
+
+
+
+
+
 
 
