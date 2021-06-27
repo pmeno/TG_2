@@ -1,7 +1,7 @@
 ChecarPrecoAcao <- function(dados = data.table(), dataMercado = "2010-01-01", tipoAcao)
 {
   
-  tickers <- dados[ , unique(get(paste0('Ticker_', tipoAcao, '_YAHOO')))]
+  tickers <- dados[year(DT_REG) <= year(dataMercado) , unique(get(paste0('Ticker_', tipoAcao, '_YAHOO')))]
   precos  <- BatchGetSymbols(tickers, first.date = dataMercado, last.date = offset(dataMercado, 12, 'Brazil/ANBIMA'), do.fill.missing.prices = T, thresh.bad.data = 0, do.cache = T)
   
   precos <- precos$df.tickers

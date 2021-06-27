@@ -6,6 +6,7 @@ require(GetDFPData2)
 require(GetFREData)
 require(bizdays)
 require(stringr)
+require(quantmod)
 
 ### CAMINHOS NECESSÁRIOS #####
 
@@ -21,6 +22,10 @@ source(paste0(caminhoPrincipal, 'DefineQtdAcoes.R'))
 source(paste0(caminhoPrincipal, 'DiasUteisPreco.R'))
 source(paste0(caminhoPrincipal, 'CalcularValorMercado.R'))
 source(paste0(caminhoPrincipal, 'RetornaValorContabil.R'))
+source(paste0(caminhoPrincipal, 'ClassificarBigSmall.R'))
+source(paste0(caminhoPrincipal, 'ClassificarLowMediumHigh.R'))
+source(paste0(caminhoPrincipal, 'DividirCarteiras3Fatores.R'))
+source(paste0(caminhoPrincipal, 'CalcularRetornoMensal.R'))
 
 
 ### Declaracoes de variaveis ####
@@ -144,10 +149,38 @@ patrimonioFinalFaltantes <- merge(acoesFaltantes, patrimonioFinalFaltantes, by =
 insumos3Fatores <- rbind(patrimonioFinal, patrimonioFinalFaltantes)
 insumos3Fatores <- insumos3Fatores[!is.na(VL_CONTA)]
 insumos3Fatores <- insumos3Fatores[, valorPatrimonio := ifelse(ESCALA_MOEDA == 'MIL', VL_CONTA*1000, VL_CONTA)]
+insumos3Fatores[, VC_VM := valorPatrimonio/valorDeMercado]
+#Retirando valores negativos e outliers
+insumos3Fatores <- insumos3Fatores[!(VC_VM <= 0 | VC_VM >=100)]
 
+# Classificando empresas pequenas e grandes
+insumos3Fatores <- ClassificarBigSmall(insumos3Fatores)
 
+#Classificando empresas de crescimento
+insumos3Fatores <- ClassificarLowMediumHigh(insumos3Fatores)
 
+insumos3Fatores[, carteira := paste0(S_B, '/', L_M_H)]
 
+carteiras <- DividirCarteiras3Fatores(insumos3Fatores)
+insumoWide <- melt.data.table(insumos3Fatores, c('year', 'valorDeMercado', 'valorPatrimonio'), measure.vars = c('Ticker_ON', 'Ticker_PN'), variable.name = 'ticker')
+insumoWide[, ticker := NULL]
+setnames(insumoWide, 'value', 'ticker')
+insumoWide <- insumoWide[!(is.na(ticker))]
+
+resultCateiras <- lapply(carteiras, function(c)
+  {
+    tickerON <- c[, unique(Ticker_ON)]
+    tickerPN <- c[, unique(Ticker_PN)]
+    ticker   <- c(tickerON, tickerPN)
+    retorno  <- CalcularRetornoMensal(c, ticker)
+    retorno  <- merge(retorno, insumoWide, by = c('ticker', 'year'))
+    retorno  <- retorno[!(is.na(retMensal))]
+    retorno[, quantilBaixa := quantile(retMensal, 0.05), by = .(year, ticker)]
+    retorno[, quantilAlta := quantile(retMensal, 0.95), by = .(year, ticker)]
+    retorno <- retorno[retMensal >= quantilBaixa & retMensal <= quantilAlta]
+    retorno[, retPonderado := weighted.mean(retMensal, valorDeMercado, na.rm = T), by = .(year,month)]
+    retorno
+  })
 
 
 
